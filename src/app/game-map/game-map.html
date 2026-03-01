@@ -1,1 +1,12 @@
+<div class="filter-bar">
+  @for (type of industryTypes; track type) {
+    <button
+      class="filter-btn"
+      [class.inactive]="!isActive(type)"
+      (click)="toggleIndustry(type)">
+      <img [src]="iconUrl(type)" [alt]="type" class="filter-icon" />
+      <span>{{ type }}</span>
+    </button>
+  }
+</div>
 <div #mapContainer class="map-container"></div>
