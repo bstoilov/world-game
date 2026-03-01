@@ -1,3 +1,27 @@
+<div class="country-search">
+  <input
+    type="text"
+    class="country-input"
+    placeholder="Search country..."
+    [value]="countrySearch()"
+    (input)="onSearchInput($event)"
+    (keydown)="onSearchKeydown($event)"
+    (focus)="onSearchFocus()"
+    (blur)="onSearchBlur()" />
+  @if (dropdownOpen() && filteredCountries().length) {
+    <div class="country-dropdown">
+      @for (country of filteredCountries(); track country.name; let i = $index) {
+        <button
+          class="country-option"
+          [class.highlighted]="highlightedIndex() === i"
+          (mousedown)="goToCountry(country)"
+          (mouseenter)="highlightedIndex.set(i)">
+          {{ country.name }}
+        </button>
+      }
+    </div>
+  }
+</div>
 <div class="filter-bar">
   @for (type of industryTypes; track type) {
     <button
@@ -6,6 +30,16 @@
       (click)="toggleIndustry(type)">
       <img [src]="iconUrl(type)" [alt]="type" class="filter-icon" />
       <span>{{ type }}</span>
+    </button>
+  }
+</div>
+<div class="zoom-bar">
+  @for (level of zoomLevels; track level.label) {
+    <button
+      class="zoom-btn"
+      [class.active]="activeZoom() === level.label"
+      (click)="setZoom(level)">
+      {{ level.label }}
     </button>
   }
 </div>

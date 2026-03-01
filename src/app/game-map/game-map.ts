@@ -1,5 +1,6 @@
-import { Component, OnInit, OnDestroy, ElementRef, viewChild, signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, ElementRef, viewChild, signal, computed } from '@angular/core';
 import * as L from 'leaflet';
+import { COUNTRIES, Country } from './countries';
 
 export interface Industry {
   type: 'factory' | 'mine' | 'farm' | 'lumber' | 'oil';
@@ -54,12 +55,101 @@ export class GameMap implements OnInit, OnDestroy {
   readonly industryTypes: Industry['type'][] = Object.keys(INDUSTRY_ICONS) as Industry['type'][];
   readonly activeFilters = signal<Set<string>>(new Set(this.industryTypes));
 
+  readonly zoomLevels = [
+    { label: '100%', zoom: 3 },
+    { label: '150%', zoom: 5 },
+    { label: '175%', zoom: 6 },
+    { label: '200%', zoom: 7 },
+  ];
+  readonly activeZoom = signal('100%');
+
+  readonly countrySearch = signal('');
+  readonly dropdownOpen = signal(false);
+  readonly highlightedIndex = signal(-1);
+  readonly filteredCountries = computed(() => {
+    const query = this.countrySearch().toLowerCase().trim();
+    if (!query) return COUNTRIES;
+    return COUNTRIES.filter(c => c.name.toLowerCase().includes(query));
+  });
+
+  private getActiveZoomLevel(): number {
+    const label = this.activeZoom();
+    return this.zoomLevels.find(l => l.label === label)?.zoom ?? 3;
+  }
+
+  goToCountry(country: Country): void {
+    this.map.flyTo([country.lat, country.lng], this.getActiveZoomLevel(), { duration: 1.2 });
+    this.countrySearch.set(country.name);
+    this.dropdownOpen.set(false);
+    this.highlightedIndex.set(-1);
+  }
+
+  onSearchInput(event: Event): void {
+    this.countrySearch.set((event.target as HTMLInputElement).value);
+    this.dropdownOpen.set(true);
+    this.highlightedIndex.set(-1);
+  }
+
+  onSearchKeydown(event: KeyboardEvent): void {
+    const countries = this.filteredCountries();
+    if (!countries.length) return;
+
+    switch (event.key) {
+      case 'ArrowDown':
+        event.preventDefault();
+        this.dropdownOpen.set(true);
+        this.highlightedIndex.update(i => (i + 1) % countries.length);
+        this.scrollToHighlighted();
+        break;
+      case 'ArrowUp':
+        event.preventDefault();
+        this.dropdownOpen.set(true);
+        this.highlightedIndex.update(i => (i - 1 + countries.length) % countries.length);
+        this.scrollToHighlighted();
+        break;
+      case 'Enter':
+        event.preventDefault();
+        const idx = this.highlightedIndex();
+        if (idx >= 0 && idx < countries.length) {
+          this.goToCountry(countries[idx]);
+        }
+        break;
+      case 'Escape':
+        this.dropdownOpen.set(false);
+        this.highlightedIndex.set(-1);
+        break;
+    }
+  }
+
+  onSearchFocus(): void {
+    this.dropdownOpen.set(true);
+  }
+
+  onSearchBlur(): void {
+    setTimeout(() => {
+      this.dropdownOpen.set(false);
+      this.highlightedIndex.set(-1);
+    }, 200);
+  }
+
+  private scrollToHighlighted(): void {
+    requestAnimationFrame(() => {
+      const el = document.querySelector('.country-option.highlighted');
+      el?.scrollIntoView({ block: 'nearest' });
+    });
+  }
+
   iconUrl(type: Industry['type']): string {
     return INDUSTRY_ICON_URLS[type];
   }
 
   isActive(type: string): boolean {
     return this.activeFilters().has(type);
+  }
+
+  setZoom(level: { label: string; zoom: number }): void {
+    this.map.setZoom(level.zoom, { animate: true });
+    this.activeZoom.set(level.label);
   }
 
   toggleIndustry(type: string): void {
@@ -84,10 +174,8 @@ export class GameMap implements OnInit, OnDestroy {
       zoom: 3,
       minZoom: 2,
       maxZoom: 18,
-      zoomSnap: 0.5,
-      zoomDelta: 0.5,
-      wheelPxPerZoomLevel: 80,
-      zoomControl: true,
+      scrollWheelZoom: false,
+      zoomControl: false,
       maxBounds: [[-85, -180], [85, 180]],
       maxBoundsViscosity: 1.0,
     });
